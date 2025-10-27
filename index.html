@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>San Francisco Film Locations - Interactive Map</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #000;
+            padding: 20px;
+        }
+
+        #container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: #1a1a1a;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+
+        h1 {
+            font-family: Georgia, 'Times New Roman', serif;
+            font-size: 48px;
+            margin-bottom: 20px;
+            color: #fff;
+            text-align: center;
+            letter-spacing: 0.5px;
+        }
+
+        #main-content {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+        }
+
+        #map-container {
+            flex: 1;
+            border: 1px solid #444;
+            border-radius: 4px;
+            overflow: hidden;
+            background: #0a0a0a;
+        }
+
+        #controls {
+            width: 350px;
+            padding: 20px;
+            background: #2a2a2a;
+            border-radius: 6px;
+            max-height: calc(100vh - 120px);
+            overflow-y: auto;
+        }
+
+        .control-section {
+            margin-bottom: 20px;
+        }
+
+        .control-section h3 {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #ccc;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .slider-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .slider-label {
+            font-size: 12px;
+            color: #aaa;
+            min-width: 100px;
+        }
+
+        .slider {
+            flex: 1;
+        }
+
+        .slider-value {
+            font-size: 12px;
+            color: #fff;
+            min-width: 40px;
+            text-align: right;
+        }
+
+        .director-checkboxes {
+            width: 100%;
+            max-height: 200px;
+            overflow-y: auto;
+            padding: 8px;
+            border: 1px solid #444;
+            border-radius: 4px;
+            background: #1a1a1a;
+        }
+
+        .director-checkbox-item label {
+            color: #ccc;
+        }
+
+        .director-checkbox-item {
+            display: flex;
+            align-items: center;
+            padding: 4px 0;
+            font-size: 12px;
+        }
+
+        .director-checkbox-item input {
+            margin-right: 8px;
+            cursor: pointer;
+        }
+
+        .director-checkbox-item label {
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .select-all-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .select-all-btn {
+            flex: 1;
+            padding: 6px 12px;
+            background: #333;
+            border: 1px solid #555;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            color: #ccc;
+            transition: all 0.2s;
+        }
+
+        .select-all-btn:hover {
+            background: #444;
+        }
+
+        .legend {
+            display: inline-block;
+            margin-right: 15px;
+            font-size: 12px;
+            color: #aaa;
+        }
+
+        .legend-circle {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 5px;
+            vertical-align: middle;
+        }
+
+        .circle-a {
+            background: #4A90E2;
+        }
+
+        .circle-b {
+            background: #FF8C42;
+        }
+
+        .data-point {
+            fill: #FF6B6B;
+            opacity: 0.6;
+            cursor: pointer;
+            stroke: white;
+            stroke-width: 0.5;
+        }
+
+        .data-point.filtered {
+            fill: #ccc;
+            opacity: 0.3;
+        }
+
+        .circle-overlay {
+            fill: none;
+            stroke-width: 3;
+            cursor: move;
+        }
+
+        .circle-center {
+            fill: white;
+            stroke: #333;
+            stroke-width: 2;
+            cursor: move;
+            r: 6;
+        }
+
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 6px;
+            pointer-events: none;
+            font-size: 12px;
+            max-width: 300px;
+            z-index: 1000;
+        }
+
+        .tooltip-title {
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #FFD700;
+        }
+
+        .tooltip-section {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .info {
+            font-size: 11px;
+            color: #999;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #444;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <h1>San Francisco Film Locations</h1>
+        <p style="font-size: 13px; color: #aaa; margin-bottom: 20px; text-align: center;">
+            Explore ~2,000 film locations across San Francisco! Drag circles to filter locations, adjust radius with sliders, and use additional filters on the right for year and directors.
+        </p>
+
+        <div id="main-content">
+            <div id="map-container"></div>
+            
+            <div id="controls">
+            <div class="control-section">
+                <h3>Circle Filters</h3>
+                <div class="slider-group">
+                    <span class="slider-label">Circle A (Blue) Radius:</span>
+                    <input type="range" id="radius-a-slider" class="slider" min="500" max="10000" value="3000" step="100">
+                    <span class="slider-value" id="radius-a-value">3000m</span>
+                </div>
+                <div class="slider-group">
+                    <span class="slider-label">Circle B (Orange) Radius:</span>
+                    <input type="range" id="radius-b-slider" class="slider" min="500" max="10000" value="3000" step="100">
+                    <span class="slider-value" id="radius-b-value">3000m</span>
+                </div>
+                <div style="margin-top: 10px;">
+                    <span class="legend"><span class="legend-circle circle-a"></span>Circle A</span>
+                    <span class="legend"><span class="legend-circle circle-b"></span>Circle B</span>
+                    <span class="legend" style="color: #FF6B6B;">● Active</span>
+                    <span class="legend" style="color: #ccc;">● Filtered</span>
+                </div>
+            </div>
+
+            <div class="control-section">
+                <h3>Year Filter</h3>
+                <div class="slider-group">
+                    <span class="slider-label">Min Year:</span>
+                    <input type="range" id="min-year-slider" class="slider" min="1900" max="2025" value="1900" step="1">
+                    <span class="slider-value" id="min-year-value">1900</span>
+                </div>
+                <div class="slider-group">
+                    <span class="slider-label">Max Year:</span>
+                    <input type="range" id="max-year-slider" class="slider" min="1900" max="2025" value="2025" step="1">
+                    <span class="slider-value" id="max-year-value">2025</span>
+                </div>
+            </div>
+
+            <div class="control-section">
+                <h3>Director Filter</h3>
+                <div id="director-checkboxes" class="director-checkboxes">
+                    <div>Loading directors...</div>
+                </div>
+                <div class="select-all-buttons">
+                    <button class="select-all-btn" id="select-all-directors">Select All</button>
+                    <button class="select-all-btn" id="deselect-all-directors">Deselect All</button>
+                </div>
+            </div>
+            </div>
+        </div>
+
+        <div id="tooltip" class="tooltip" style="display: none;"></div>
+
+        <div id="resources-section" style="margin-top: 30px; padding: 20px; background: #2a2a2a; border-radius: 6px;">
+            <h2 style="font-family: Georgia, 'Times New Roman', serif; color: #fff; margin-bottom: 15px;">Resources Used</h2>
+            <p style="color: #aaa; font-size: 13px; line-height: 1.6;">
+                After coding the frame of the project with JavaScript and filling it in with teh information, I used cursor to help me with teh front end in styling. I commanded the agent with want I wanted the interface to look liek and let it handle those changes. For example, make the circle circumference dashed or make the title teh same font as teh new york times title. 
+            </p>
+        </div>
+
+        <div id="development-section" style="margin-top: 20px; padding: 20px; background: #2a2a2a; border-radius: 6px;">
+            <h2 style="font-family: Georgia, 'Times New Roman', serif; color: #fff; margin-bottom: 15px;">Development Process</h2>
+            <p style="color: #aaa; font-size: 13px; line-height: 1.6;">
+                I spent about two hours coding the website and then an additional 30 minutes working with cursor to style it, and then another 30 minutes making revisions to the UX like making the circle draggable from anywhere in teh circle, or making teh select all deselct all for director filtering. 
+                It took teh most time to just get the data in teh website and making the intersection logic for making the right dots active. I had the most fun making stylization decisions as well as the revisions to the UX because I was trying to integrate lessons learns from class. For example i used orange and blue  instead of green and red to account for accessibility.
+                Javascript, html, css is a language im very familaiar with ebcause i have done a lot of web dev so this was pretty in my comfort zone. 
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // Map dimensions
+        const mapWidth = 1968 / 2.4;
+        const mapHeight = 1580 / 2.4;
+
+        // Geographic bounds for San Francisco
+        const longitudeRange = [-122.52876879101329, -122.34501499128038];
+        const latitudeRange = [37.69947941416328, 37.81633202723721];
+
+        // Create map frame for projection
+        const mapFrameGeoJSON = {
+            type: "Feature",
+            geometry: {
+                type: "LineString",
+                coordinates: [
+                    [longitudeRange[0], latitudeRange[0]],
+                    [longitudeRange[1], latitudeRange[1]]
+                ]
+            }
+        };
+
+        // D3 Mercator projection fitted to map
+        const projection = d3.geoMercator()
+            .fitExtent([[0, 0], [mapWidth, mapHeight]], mapFrameGeoJSON);
+
+        // State variables
+        let data = [];
+        let allData = []; // Keep original data for filtering
+        let circleA = { lon: -122.45, lat: 37.78, radius: 3000 }; // Starting positions
+        let circleB = { lon: -122.41, lat: 37.77, radius: 3000 };
+        let selectedDirectors = [];
+
+        // Distance function (meters) using Haversine formula
+        function distanceBetweenPoints(lon1, lat1, lon2, lat2) {
+            const R = 6371000; // Earth's radius in meters
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = 
+                Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        // Initialize the map
+        const svg = d3.select("#map-container")
+            .append("svg")
+            .attr("width", mapWidth)
+            .attr("height", mapHeight)
+            .style("background", "#f8f8f8");
+
+        // Add map background image
+        svg.append("image")
+            .attr("width", mapWidth)
+            .attr("height", mapHeight)
+            .attr("xlink:href", "sf_map.png");
+
+        // Initialize tooltip
+        const tooltip = d3.select("#tooltip");
+
+        // Load the data
+        d3.csv("SF_Film_Locations_Filtered.csv", function(d) {
+            // Parse numeric fields
+            d.lat = parseFloat(d.Latitude);
+            d.lon = parseFloat(d.Longitude);
+            d.year = parseInt(d["Release Year"]) || 0;
+            return d;
+        }).then(function(loadedData) {
+            data = loadedData;
+            allData = loadedData;
+            
+            // Populate director checkboxes
+            const directors = [...new Set(loadedData.map(d => d.Director).filter(d => d))].sort();
+            const directorCheckboxes = d3.select("#director-checkboxes");
+            directorCheckboxes.html("");
+            directors.forEach(dir => {
+                const item = directorCheckboxes.append("div")
+                    .attr("class", "director-checkbox-item");
+                item.append("input")
+                    .attr("type", "checkbox")
+                    .attr("value", dir)
+                    .attr("id", "director-" + dir.replace(/[^a-zA-Z0-9]/g, "-"))
+                    .property("checked", true); // Default to all checked
+                item.append("label")
+                    .attr("for", "director-" + dir.replace(/[^a-zA-Z0-9]/g, "-"))
+                    .text(dir);
+            });
+
+            // Initialize with all directors selected
+            selectedDirectors = directors.slice();
+
+            // Initial render
+            renderCircles();
+            renderData();
+
+            // Setup event listeners for sliders
+            d3.select("#radius-a-slider").on("input", function() {
+                circleA.radius = +this.value;
+                d3.select("#radius-a-value").text(circleA.radius + "m");
+                renderData();
+                renderCircles();
+            });
+
+            d3.select("#radius-b-slider").on("input", function() {
+                circleB.radius = +this.value;
+                d3.select("#radius-b-value").text(circleB.radius + "m");
+                renderData();
+                renderCircles();
+            });
+
+            d3.select("#min-year-slider").on("input", function() {
+                const value = +this.value;
+                d3.select("#min-year-value").text(value);
+                const maxValue = +d3.select("#max-year-slider").property("value");
+                if (value > maxValue) {
+                    d3.select("#max-year-slider").property("value", value);
+                    d3.select("#max-year-value").text(value);
+                }
+                renderData();
+            });
+
+            d3.select("#max-year-slider").on("input", function() {
+                const value = +this.value;
+                d3.select("#max-year-value").text(value);
+                const minValue = +d3.select("#min-year-slider").property("value");
+                if (value < minValue) {
+                    d3.select("#min-year-slider").property("value", value);
+                    d3.select("#min-year-value").text(value);
+                }
+                renderData();
+            });
+
+            // Handle director checkbox changes
+            d3.selectAll("#director-checkboxes input[type='checkbox']").on("change", function() {
+                selectedDirectors = [];
+                d3.selectAll("#director-checkboxes input[type='checkbox']:checked").each(function() {
+                    selectedDirectors.push(this.value);
+                });
+                renderData();
+            });
+
+            // Select all button
+            d3.select("#select-all-directors").on("click", function() {
+                d3.selectAll("#director-checkboxes input[type='checkbox']").property("checked", true);
+                selectedDirectors = directors.slice();
+                renderData();
+            });
+
+            // Deselect all button
+            d3.select("#deselect-all-directors").on("click", function() {
+                d3.selectAll("#director-checkboxes input[type='checkbox']").property("checked", false);
+                selectedDirectors = [];
+                renderData();
+            });
+
+            // Set initial slider max based on data
+            const years = loadedData.map(d => d.year).filter(y => !isNaN(y));
+            const minYear = Math.floor(Math.min(...years));
+            const maxYear = Math.ceil(Math.max(...years));
+            d3.select("#min-year-slider").attr("min", minYear).attr("max", maxYear);
+            d3.select("#max-year-slider").attr("min", minYear).attr("max", maxYear);
+            d3.select("#min-year-slider").property("value", minYear);
+            d3.select("#max-year-slider").property("value", maxYear);
+            d3.select("#min-year-value").text(minYear);
+            d3.select("#max-year-value").text(maxYear);
+        });
+
+        // Render the circles on the map
+        function renderCircles() {
+            const circles = svg.selectAll(".circle-overlay").data([circleA, circleB]);
+
+            circles.enter()
+                .append("circle")
+                .attr("class", "circle-overlay")
+                .merge(circles)
+                .attr("cx", (d, i) => {
+                    const proj = projection([d.lon, d.lat]);
+                    return proj[0];
+                })
+                .attr("cy", (d, i) => {
+                    const proj = projection([d.lon, d.lat]);
+                    return proj[1];
+                })
+                .attr("fill", (d, i) => i === 0 ? "rgba(74, 144, 226, 0.1)" : "rgba(255, 140, 66, 0.1)")
+                .attr("stroke", (d, i) => i === 0 ? "#4A90E2" : "#FF8C42")
+                .attr("stroke-width", 3)
+                .attr("stroke-dasharray", (d, i) => "8,4")
+                .style("pointer-events", "all")
+                .style("cursor", "move")
+                .attr("r", d => {
+                    // Convert radius from meters to pixel distance
+                    // Sample multiple nearby points to get accurate scale at this location
+                    const centerProj = projection([d.lon, d.lat]);
+                    
+                    // Sample at 4 points: north, south, east, west
+                    const northLat = d.lat + 0.001;
+                    const southLat = d.lat - 0.001;
+                    const eastLon = d.lon + 0.001;
+                    const westLon = d.lon - 0.001;
+                    
+                    const northProj = projection([d.lon, northLat]);
+                    const southProj = projection([d.lon, southLat]);
+                    const eastProj = projection([eastLon, d.lat]);
+                    const westProj = projection([westLon, d.lat]);
+                    
+                    // Get pixel distances
+                    const pixelsLat = Math.sqrt(Math.pow(northProj[1] - southProj[1], 2));
+                    const pixelsLon = Math.sqrt(Math.pow(eastProj[0] - westProj[0], 2));
+                    
+                    // 0.002 degrees (0.001 north + 0.001 south) ≈ meters at this latitude
+                    const metersPerDegree = 111000 * Math.cos(d.lat * Math.PI / 180);
+                    const pixelsPerMeter = Math.min(pixelsLat, pixelsLon) / (metersPerDegree * 0.002);
+                    
+                    return d.radius * pixelsPerMeter;
+                })
+                .call(d3.drag()
+                    .on("drag", function(event, d) {
+                        // Update circle position during drag
+                        const proj = projection.invert([event.x, event.y]);
+                        d.lon = proj[0];
+                        d.lat = proj[1];
+                        renderCircles();
+                        renderData();
+                    }));
+
+            // Circle centers
+            const centers = svg.selectAll(".circle-center").data([circleA, circleB]);
+
+            centers.enter()
+                .append("circle")
+                .attr("class", "circle-center")
+                .merge(centers)
+                .attr("cx", (d, i) => {
+                    const proj = projection([d.lon, d.lat]);
+                    return proj[0];
+                })
+                .attr("cy", (d, i) => {
+                    const proj = projection([d.lon, d.lat]);
+                    return proj[1];
+                })
+                .attr("fill", (d, i) => i === 0 ? "#4A90E2" : "#FF8C42")
+                .style("pointer-events", "all")
+                .call(d3.drag()
+                    .on("drag", function(event, d) {
+                        const proj = projection.invert([event.x, event.y]);
+                        d.lon = proj[0];
+                        d.lat = proj[1];
+                        renderCircles();
+                        renderData();
+                    }));
+        }
+
+        // Render data points and apply filters
+        function renderData() {
+            const minYear = +d3.select("#min-year-slider").property("value");
+            const maxYear = +d3.select("#max-year-slider").property("value");
+
+            // Filter data based on all criteria
+            const filtered = allData.filter(d => {
+                // Check if inside both circles
+                const distA = distanceBetweenPoints(circleA.lon, circleA.lat, d.lon, d.lat);
+                const distB = distanceBetweenPoints(circleB.lon, circleB.lat, d.lon, d.lat);
+                const inCircles = distA <= circleA.radius && distB <= circleB.radius;
+
+                // Check year range
+                const inYearRange = d.year >= minYear && d.year <= maxYear;
+
+                // Check director (if none selected, show nothing; if any selected, only show those)
+                const directorMatch = d.Director && selectedDirectors.includes(d.Director);
+
+                return inCircles && inYearRange && directorMatch;
+            });
+
+            // Update visualization
+            const points = svg.selectAll(".data-point")
+                .data(allData, d => d.Latitude + "," + d.Longitude);
+
+            points.enter()
+                .append("circle")
+                .attr("class", "data-point")
+                .merge(points)
+                .attr("cx", d => {
+                    const proj = projection([d.lon, d.lat]);
+                    return proj[0];
+                })
+                .attr("cy", d => {
+                    const proj = projection([d.lon, d.lat]);
+                    return proj[1];
+                })
+                .attr("r", 3)
+                .classed("filtered", d => !filtered.some(f => f.Latitude === d.Latitude && f.Longitude === d.Longitude))
+                .on("mouseover", function(event, d) {
+                    // Show tooltip
+                    tooltip.style("display", "block");
+                    let html = `<div class="tooltip-title">${d.Title}</div>`;
+                    html += `<div><strong>Year:</strong> ${d["Release Year"] || "N/A"}</div>`;
+                    html += `<div><strong>Location:</strong> ${d.Locations || "N/A"}</div>`;
+                    
+                    html += "<div class=\"tooltip-section\">";
+                    if (d["Actor 1"]) html += `<div><strong>Actor 1:</strong> ${d["Actor 1"]}</div>`;
+                    if (d["Actor 2"]) html += `<div><strong>Actor 2:</strong> ${d["Actor 2"]}</div>`;
+                    if (d["Actor 3"]) html += `<div><strong>Actor 3:</strong> ${d["Actor 3"]}</div>`;
+                    html += "</div>";
+
+                    html += "<div class=\"tooltip-section\">";
+                    if (d.Director) html += `<div><strong>Director:</strong> ${d.Director}</div>`;
+                    if (d.Writer) html += `<div><strong>Writer:</strong> ${d.Writer}</div>`;
+                    html += "</div>";
+
+                    html += "<div class=\"tooltip-section\">";
+                    if (d["Production Company"]) html += `<div><strong>Production:</strong> ${d["Production Company"]}</div>`;
+                    if (d.Distributor) html += `<div><strong>Distributor:</strong> ${d.Distributor}</div>`;
+                    html += "</div>";
+
+                    if (d["Fun Facts"]) {
+                        html += "<div class=\"tooltip-section\">";
+                        html += `<div style=\"font-style: italic; color: #FFD700;\">${d["Fun Facts"]}</div>`;
+                        html += "</div>";
+                    }
+
+                    tooltip.html(html)
+                        .style("left", (event.pageX + 10) + "px")
+                        .style("top", (event.pageY - 10) + "px");
+                })
+                .on("mousemove", function(event) {
+                    tooltip.style("left", (event.pageX + 10) + "px")
+                        .style("top", (event.pageY - 10) + "px");
+                })
+                .on("mouseout", function() {
+                    tooltip.style("display", "none");
+                });
+
+            points.exit().remove();
+        }
+    </script>
+</body>
+</html>

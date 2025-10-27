@@ -1,0 +1,11 @@
+# IDE
+.DS_Store
+.vscode/
+.idea/
+
+# Server
+*.log
+
+# Node modules (if you add any)
+node_modules/
+package-lock.json
